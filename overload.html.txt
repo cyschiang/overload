@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>流量過載 </title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@600;900&family=Noto+Sans+TC:wght@500;900&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --c-main: #00ff9d;
+            --c-warn: #ffcc00;
+            --c-die: #ff003c;
+            --bg: #050505;
+            --bsod: #0000aa;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--c-main);
+            font-family: 'Noto Sans TC', sans-serif;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+            margin: 0; padding: 0;
+            height: 100dvh;
+        }
+        
+        .font-cyber { font-family: 'Orbitron', sans-serif; }
+        .font-mono { font-family: 'Share Tech Mono', monospace; }
+
+        /* 背景特效 (Pointer Events NONE) */
+        .matrix-bg {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at center, #001000 0%, #000000 90%);
+            z-index: 0; pointer-events: none;
+        }
+        .scanlines {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 3px 100%; pointer-events: none; z-index: 2;
+        }
+        
+        /* 畫面震動 */
+        .shake-1 { animation: shake 0.5s infinite; }
+        .shake-2 { animation: shake 0.2s infinite; filter: contrast(1.2) sepia(0.3) hue-rotate(-20deg); }
+        .shake-3 { animation: shake 0.05s infinite; filter: contrast(1.5) sepia(1) hue-rotate(-50deg); box-shadow: inset 0 0 50px red; }
+        @keyframes shake { 
+            0% { transform: translate(1px, 1px) rotate(0deg); } 
+            50% { transform: translate(-1px, -1px) rotate(-1deg); } 
+        }
+
+        /* 爆炸層 */
+        .exploding-layer {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999;
+            pointer-events: none; display: none; background: white;
+        }
+        .exploding .exploding-layer { display: block; animation: explode-fx 2s forwards; }
+        @keyframes explode-fx {
+            0% { background: white; opacity: 1; }
+            10% { background: var(--c-die); }
+            100% { background: black; opacity: 1; }
+        }
+
+        /* UI 切換 */
+        .screen { display: none; width: 100%; height: 100dvh; position: fixed; top: 0; left: 0; flex-direction: column; z-index: 10; }
+        #screen-menu { display: flex; z-index: 50; } 
+        .screen.active { display: flex !important; }
+
+        /* 按鈕 */
+        .btn-core {
+            background: rgba(0, 20, 0, 0.8); border: 2px solid var(--c-main); color: var(--c-main);
+            font-family: 'Orbitron', sans-serif; text-transform: uppercase; font-weight: 900; letter-spacing: 2px;
+            box-shadow: 0 0 15px rgba(0, 255, 157, 0.3); transition: transform 0.05s;
+            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+            position: relative; z-index: 20; /* Ensure high z-index */
+        }
+        .btn-core:active { background: var(--c-main); color: #000; transform: scale(0.95); }
+        
+        .btn-panic {
+            border-color: var(--c-die); color: var(--c-die); background: rgba(50, 0, 0, 0.5);
+            box-shadow: 0 0 30px var(--c-die); animation: glitch-btn 0.1s infinite;
+        }
+        @keyframes glitch-btn { 0% { transform: translate(0); } 25% { transform: translate(-2px, 2px); } 75% { transform: translate(2px, -2px); } }
+
+        /* 混亂層 (Z-Index 9000) */
+        .chaos-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9000;
+            background: rgba(0,0,0,0.95); flex-direction: column; align-items: center; justify-content: center;
+            backdrop-filter: blur(5px); padding: 20px;
+        }
+        .chaos-active { display: flex !important; }
+
+        /* === 惡意 UI 組件 === */
+        .junk-icon {
+            position: absolute; width: 80px; height: 90px; background: #050505; border: 1px solid var(--c-die); color: white;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-size: 10px; cursor: pointer; z-index: 9100; animation: pop-in 0.2s; box-shadow: 0 0 10px red;
+        }
+        @keyframes pop-in { from { transform: scale(0); } to { transform: scale(1); } }
+
+        #bouncing-box {
+            position: absolute; width: 160px; height: 80px; background: var(--c-warn); color: black; font-weight: bold;
+            display: flex; align-items: center; justify-content: center; border: 4px solid white; box-shadow: 0 0 30px var(--c-warn);
+            cursor: pointer; z-index: 9200; font-family: 'Orbitron';
+        }
+
+        .captcha-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 20px; }
+        .captcha-tile { width: 80px; height: 80px; background: #222; border: 2px solid #555; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: bold; font-family: 'Orbitron'; color: white; cursor: pointer; transition: all 0.1s; }
+        .captcha-tile:active { transform: translateY(4px); }
+
+        .vis-bar { width: 10%; background: var(--c-main); transition: height 0.05s ease; opacity: 0.9; box-shadow: 0 0 8px var(--c-main); }
+
+        .fake-ad-container {
+            width: 85vw; max-width: 320px; height: 60vh; max-height: 480px;
+            background: white; border-radius: 8px; position: relative; overflow: hidden;
+            display: flex; flex-direction: column; animation: float 2s ease-in-out infinite alternate;
+            border: 2px solid #333; box-shadow: 0 10px 50px black;
+        }
+        @keyframes float { from { transform: translateY(0); } to { transform: translateY(-5px); } }
+        .fake-x { position: absolute; top: 5px; right: 5px; width: 40px; height: 40px; background: #eee; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #555; font-size: 20px; z-index: 10; font-weight: bold; cursor: pointer; }
+        .real-x { position: absolute; top: 0; left: 0; width: 50px; height: 50px; background: transparent; color: #ccc; font-size: 10px; display: flex; align-items: center; justify-content: center; z-index: 20; opacity: 0.4; cursor: pointer; }
+
+        .notif-item { width: 90%; background: rgba(20,20,20,0.98); border-left: 4px solid var(--c-main); padding: 15px; margin-bottom: 10px; color: white; border-radius: 4px; transform: translateX(100%); animation: slide-in 0.3s forwards; display:flex; justify-content:space-between; align-items:center; cursor: pointer; }
+        @keyframes slide-in { to { transform: translateX(0); } }
+
+        /* 緊急按鈕 - 絕對最高層 */
+        #emergency-btn {
+            z-index: 999999 !important;
+            display: none; /* 控制顯示 */
+        }
+        #emergency-btn.show { display: block !important; animation: fade-in 0.5s; }
+        @keyframes fade-in { from { opacity: 0; } to { opacity: 0.8; } }
+
+    </style>
+</head>
+<body>
+
+    <div class="matrix-bg"></div>
+    <div class="scanlines"></div>
+    <div class="exploding-layer"></div>
+    
+    <div id="mute-btn" onclick="AudioEngine.toggleMute()" class="fixed top-4 left-4 z-[9999] text-3xl cursor-pointer opacity-70 text-green-400">🔊</div>
+    
+    <!-- 救命按鈕：紅燈閃爍 -->
+    <button id="emergency-btn" onclick="Chaos.forceResolve()" class="fixed top-4 right-4 text-[10px] bg-red-900 border border-white px-4 py-2 text-white rounded font-mono border-l-4 shadow-[0_0_20px_red] hover:bg-red-700 transition-all">SKIP (BUG)</button>
+
+    <!-- 1. 主選單 -->
+    <div id="screen-menu" class="screen active items-center justify-center bg-black/90 backdrop-blur-sm">
+        <div class="relative z-10 text-center px-4 w-full">
+            <h1 class="text-6xl md:text-8xl text-white mb-4 font-cyber tracking-tighter" style="text-shadow: 0 0 20px var(--c-main);">TRAFFIC<br>V68.0</h1>
+            <div class="text-gray-400 font-mono text-xs mb-12 tracking-widest bg-black px-3 py-1 inline-block border border-gray-700">ANTI_LOCK_EDITION</div>
+            
+            <button onclick="Game.start()" class="btn-core w-full max-w-xs py-6 md:py-8 text-2xl md:text-3xl mb-8">
+                CONNECT
+            </button>
+            <div class="text-xs text-gray-500 font-mono space-y-2 text-center">
+                <p>🎵 4樂章動態驚悚配樂</p>
+                <p>🛠️ 強制解除卡死機制</p>
+                <p>⏱️ 45-90秒 / 藍屏結局</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. 遊戲畫面 -->
+    <div id="screen-game" class="screen">
+        <div class="w-full p-4 md:p-6 border-b-2 border-gray-800 bg-black/80 backdrop-blur z-20 shrink-0 flex flex-col gap-3 shadow-xl">
+            <!-- 頻譜 -->
+            <div class="flex justify-center items-end h-10 gap-1 w-full opacity-80" id="visualizer">
+                <div class="vis-bar h-2"></div><div class="vis-bar h-4"></div><div class="vis-bar h-8"></div><div class="vis-bar h-5"></div>
+                <div class="vis-bar h-3"></div><div class="vis-bar h-7"></div><div class="vis-bar h-4"></div><div class="vis-bar h-2"></div>
+            </div>
+            <div class="flex justify-between items-end font-cyber text-gray-400 text-xs md:text-sm">
+                <span>SYSTEM_OVERLOAD</span>
+                <span id="pressure-val" class="text-lg md:text-xl text-green-400">0%</span>
+            </div>
+            <!-- 詐欺進度條 -->
+            <div class="w-full h-3 bg-gray-900 relative border border-gray-700 overflow-hidden rounded-full">
+                <div id="time-bar" class="absolute right-0 h-full bg-gradient-to-l from-red-600 to-green-500 w-full transition-all duration-100 ease-linear shadow-[0_0_15px_currentColor]"></div>
+            </div>
+        </div>
+
+        <!-- 任務 -->
+        <div class="flex-1 flex flex-col items-center justify-center p-4 md:p-8 z-10 text-center relative w-full overflow-hidden">
+            <div class="text-[10px] md:text-xs font-mono text-gray-500 mb-4 uppercase tracking-[0.3em]">CURRENT_TASK</div>
+            <div id="task-text" class="text-2xl md:text-5xl font-black text-white leading-tight min-h-[150px] flex items-center justify-center transition-all duration-100 drop-shadow-2xl break-words w-full px-2" style="text-shadow: 0 0 20px rgba(0,255,0,0.2);">
+                Waiting...
+            </div>
+            <!-- 假緩衝 -->
+            <div id="fake-buffering" class="hidden mt-4 items-center gap-2 text-xs text-purple-500 font-mono animate-pulse">
+                <div class="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div> REROUTING...
+            </div>
+        </div>
+
+        <!-- 底部按鈕 -->
+        <div class="w-full p-6 md:p-8 pb-10 md:pb-16 flex justify-center z-20 shrink-0">
+            <div id="pass-container" class="w-full max-w-sm transition-transform duration-100 ease-out">
+                <button id="btn-pass" onclick="Game.tryPass(event)" class="btn-core w-full py-6 md:py-8 text-2xl relative z-30">
+                    COMPLETE
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. 結局 (BSOD) -->
+    <div id="screen-end" class="screen font-mono p-8 hidden items-start justify-start text-left" style="background-color: var(--bsod); color: white;">
+        <div class="text-6xl mb-4">:(</div>
+        <div class="text-2xl mb-8">Your device ran into a problem.</div>
+        <div class="text-sm mb-8 text-yellow-300 font-bold">
+            Stop Code: SOCIAL_DEATH<br>
+            Reason: TIME_LIMIT_EXCEEDED
+        </div>
+        <div class="text-xs opacity-70 mb-12 space-y-2">
+            <p>dumping_memory... 100%</p>
+            <p>chaos_engine... halted</p>
+        </div>
+        <div class="flex gap-4 w-full max-w-md mt-auto">
+            <button onclick="location.reload()" class="flex-1 bg-white text-blue-900 font-bold py-4 hover:bg-gray-200 border-2 border-white rounded">RESTART</button>
+        </div>
+    </div>
+
+    <!-- === 惡意 UI (Chaos) 15種 === -->
+    <div id="chaos-junk" class="chaos-overlay"><div class="text-center mb-8 pointer-events-none z-20"><h2 class="text-3xl font-bold text-red-500">MEMORY FULL</h2><p class="text-white">Purge <span id="junk-count" class="text-yellow-400 text-2xl">5</span> items</p></div><div id="junk-container" class="absolute inset-0 z-10 w-full h-full overflow-hidden"></div></div>
+    <div id="chaos-perm" class="chaos-overlay"><div class="bg-white text-black p-6 rounded w-80 border-4 border-red-600 text-center"><h3 class="text-xl font-bold mb-2">🔒 ALERT</h3><p class="mb-4">Format C: Drive?</p><div class="flex gap-2"><button class="flex-1 p-3 bg-gray-200 font-bold text-gray-500" onclick="Chaos.spamPerm()">No</button><button class="flex-1 p-3 bg-green-500 text-white font-bold" onclick="Chaos.resolve()">Yes</button></div></div></div>
+    <div id="chaos-dim" class="chaos-overlay" style="background:rgba(0,0,0,0.99)"><div class="text-gray-500 mb-4">Power Critical</div><div class="text-4xl font-bold text-white animate-pulse mb-8">RECHARGE</div><button onclick="Chaos.wakeUp()" class="btn-core px-8 py-4 opacity-30 hover:opacity-80">TAP FAST</button><div class="w-64 h-2 bg-gray-800 mt-4 rounded"><div id="wake-fill" class="h-full bg-cyan-400 w-0"></div></div></div>
+    <div id="chaos-bounce" class="chaos-overlay" style="background:rgba(0,0,0,0.8)"><div class="absolute top-10 text-white font-mono animate-pulse">CATCH THE ERROR!</div><div id="bouncing-box" onclick="Chaos.resolve()">ERROR</div></div>
+    <div id="chaos-tiny-ad" class="chaos-overlay backdrop-blur"><div class="fake-ad-container"><div class="absolute top-2 right-2 w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center font-bold text-gray-500 cursor-pointer" onclick="AudioEngine.playSFX('error')">X</div><div class="absolute top-1 left-1 w-6 h-6 flex items-center justify-center text-gray-300 opacity-40 cursor-pointer z-20" onclick="Chaos.resolve()">x</div><div class="h-2/3 bg-gradient-to-tr from-purple-600 to-blue-600 flex items-center justify-center text-6xl">💎</div><div class="h-1/3 p-4 flex items-center justify-center"><button class="bg-blue-600 text-white font-bold py-3 w-full rounded shadow">CLAIM PRIZE</button></div></div></div>
+    <div id="chaos-captcha" class="chaos-overlay"><div class="bg-gray-800 p-4 rounded text-center w-80 border-2 border-white shadow-2xl"><div class="text-white font-bold mb-2 text-xl" id="captcha-title">Verification</div><div class="text-sm text-gray-300 mb-4" id="captcha-hint">...</div><div id="captcha-grid" class="captcha-grid"></div></div></div>
+    <div id="chaos-yt" class="chaos-overlay"><div class="w-80 bg-black border border-gray-700 rounded overflow-hidden shadow-2xl"><div class="h-48 bg-gray-900 flex items-center justify-center text-4xl relative"><span class="animate-bounce">📺</span><div class="absolute bottom-0 w-full h-1 bg-gray-800"><div class="h-full bg-red-600 animate-[width_5s_linear_infinite]" style="width:100%"></div></div></div><div class="p-4 flex justify-between items-center bg-gray-800"><span class="text-xs bg-yellow-500 px-1 rounded text-black font-bold">Ad</span><button id="btn-skip" disabled class="bg-gray-700 text-gray-400 px-4 py-2 rounded text-xs font-bold">5</button></div></div></div>
+    <div id="chaos-update" class="chaos-overlay bg-[#0000aa] font-mono text-white text-center"><div class="text-xl mb-4">Windows Update</div><div class="text-sm">Configuring updates...</div><div class="text-4xl font-bold my-4" id="update-pct">0%</div><div class="w-64 h-2 bg-gray-600 mx-auto rounded"><div id="update-prog" class="h-full bg-white w-0 transition-all duration-100"></div></div></div>
+    <div id="chaos-mosquito" class="chaos-overlay" style="background:rgba(0,0,0,0.1)"><div id="mosquito" class="absolute text-5xl cursor-pointer transition-all duration-100 select-none z-[9999]" onclick="Chaos.resolve(); AudioEngine.playSFX('trash')">🦟</div></div>
+    <div id="chaos-notif" class="chaos-overlay" style="justify-content: flex-start; padding-top: 60px; background:rgba(0,0,0,0.5)"><div id="notif-container" class="w-full flex flex-col items-center gap-2"></div></div>
+    <div id="chaos-rate" class="chaos-overlay"><div class="sys-modal"><h3 class="font-bold text-lg mb-2">Rate Us</h3><p class="text-sm mb-4">Loving the chaos?</p><div class="flex justify-center gap-2 mb-4 text-2xl text-yellow-500">⭐⭐⭐⭐⭐</div><div class="flex gap-2"><button class="flex-1 py-2 bg-gray-200 rounded font-bold text-gray-600" onclick="Chaos.spamRate()">Later</button><button class="flex-1 py-2 bg-blue-600 text-white rounded font-bold" onclick="Chaos.resolve()">Rate</button></div></div></div>
+    <div id="chaos-tos" class="chaos-overlay"><div class="bg-white text-black p-6 rounded w-80 h-96 flex flex-col"><h3 class="font-bold mb-2">Terms of Chaos</h3><div class="flex-1 overflow-y-auto text-xs bg-gray-100 p-2 mb-4 leading-relaxed text-justify" id="tos-text"><p>1. You agree to lose.</p><p>2. Your brain is property of Skynet.</p><p>3. No refunds.</p><p>...</p></div><button id="btn-tos" disabled class="w-full bg-gray-300 text-white py-2 rounded font-bold transition-colors duration-200" onclick="Chaos.resolve()">Wait 3s...</button></div></div>
+
+    <script>
+        /* --- 1. 賽博金屬交響引擎 (Cyber-Symphony) --- */
+        const AudioEngine = {
+            ctx: null, muted: false, gainNode: null, distortion: null,
+            nextNoteTime: 0, step: 0, bar: 0, melodyPattern: [],
+            scale: [82.4, 98.0, 110.0, 123.5, 146.8, 164.8], // Em Pentatonic
+            
+            init: function() {
+                try {
+                    const AC = window.AudioContext || window.webkitAudioContext;
+                    if (!this.ctx) {
+                        this.ctx = new AC();
+                        const comp = this.ctx.createDynamicsCompressor();
+                        this.gainNode = this.ctx.createGain();
+                        this.distortion = this.ctx.createWaveShaper();
+                        this.distortion.curve = this.makeCurve(400);
+                        this.gainNode.connect(comp);
+                        comp.connect(this.ctx.destination);
+                        this.genPattern();
+                    }
+                    if(this.ctx.state === 'suspended') this.ctx.resume();
+                } catch(e) {}
+            },
+            makeCurve: function(k) {
+                const n=44100, c=new Float32Array(n);
+                for(let i=0;i<n;++i){ const x=i*2/n-1; c[i]=(3+k)*x*20*(Math.PI/180)/(Math.PI+k*Math.abs(x)); }
+                return c;
+            },
+            toggleMute: function() {
+                this.muted = !this.muted;
+                document.getElementById('mute-btn').innerText = this.muted ? '🔇' : '🔊';
+                if(!this.muted && this.ctx) this.ctx.resume();
+            },
+            genPattern: function() {
+                this.melodyPattern = [];
+                for(let i=0;i<16;i++) this.melodyPattern.push(Math.random()>(i%4===0?0.3:0.7)?Math.floor(Math.random()*6):-1);
+            },
+
+            // Sound Gen
+            playTone: function(f, type, d, v, s, detune) {
+                if(!this.ctx || this.muted) return;
+                const t=this.ctx.currentTime;
+                const o=this.ctx.createOscillator(); const g=this.ctx.createGain();
+                o.type=type; o.frequency.setValueAtTime(f, t);
+                if(detune) o.detune.value = detune;
+                if(s) o.frequency.exponentialRampToValueAtTime(s, t+d);
+                g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.001, t+d);
+                o.connect(g); g.connect(this.gainNode); o.start(t); o.stop(t+d);
+            },
+            playNoise: function(d, v, f, type='highpass') {
+                if(!this.ctx || this.muted) return;
+                const t=this.ctx.currentTime;
+                const b=this.ctx.createBuffer(1,this.ctx.sampleRate*d,this.ctx.sampleRate);
+                const dt=b.getChannelData(0); for(let i=0;i<dt.length;i++) dt[i]=Math.random()*2-1;
+                const s=this.ctx.createBufferSource(); s.buffer=b;
+                const g=this.ctx.createGain(); g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.001, t+d);
+                const fl=this.ctx.createBiquadFilter(); fl.type=type; fl.frequency.value=f;
+                s.connect(fl); fl.connect(g); g.connect(this.gainNode); s.start(t);
+            },
+
+            // SFX
+            playSFX: function(type) {
+                if(!this.ctx || this.muted) return;
+                if(type==='success') this.playTone(1200+Math.random()*500, 'square', 0.05, 0.1);
+                if(type==='trash') this.playNoise(0.1, 0.3, 1000, 'lowpass');
+                if(type==='charge') this.playTone(300+Math.random()*300, 'triangle', 0.15, 0.15, 1000);
+                if(type==='error') this.playTone(60, 'sawtooth', 0.3, 0.2);
+                if(type==='scan') this.playTone(1500, 'sine', 0.2, 0.05, 2000);
+            },
+
+            // Instruments
+            playKick: function(t, vol) {
+                if(!this.ctx || this.muted) return;
+                const o=this.ctx.createOscillator(); const g=this.ctx.createGain();
+                o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(0.01, t+0.3);
+                g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t+0.3);
+                o.connect(g); g.connect(this.gainNode); o.start(t); o.stop(t+0.3);
+                setTimeout(() => this.updateVis(vol*20), (t-this.ctx.currentTime)*1000);
+            },
+            playSnare: function(t, vol) {
+                if(!this.ctx || this.muted) return;
+                this.playNoise(0.15, vol, 1500);
+            },
+            playGuitar: function(t, f, dist) {
+                if(!this.ctx || this.muted) return;
+                const o=this.ctx.createOscillator(); o.type='sawtooth'; o.frequency.value=f;
+                if(dist) o.detune.value = (Math.random()-0.5)*30;
+                const g=this.ctx.createGain(); const fl=this.ctx.createBiquadFilter(); fl.type='lowpass';
+                if(dist) { fl.frequency.value=4000; o.connect(fl); fl.connect(this.distortion); this.distortion.connect(g); g.gain.setValueAtTime(0.15, t); } 
+                else { fl.frequency.value=1500; o.connect(fl); fl.connect(g); g.gain.setValueAtTime(0.1, t); }
+                g.gain.exponentialRampToValueAtTime(0.001, t+0.4); g.connect(this.gainNode); o.start(t); o.stop(t+0.4);
+            },
+            playBass: function(t, f) {
+                if(!this.ctx || this.muted) return;
+                const o=this.ctx.createOscillator(); o.type='sawtooth'; o.frequency.value=f/2;
+                const g=this.ctx.createGain(); const fl=this.ctx.createBiquadFilter(); fl.type='lowpass';
+                fl.frequency.setValueAtTime(100, t); fl.frequency.linearRampToValueAtTime(600, t+0.1);
+                g.gain.setValueAtTime(0.4, t); g.gain.linearRampToValueAtTime(0, t+0.3);
+                o.connect(fl); fl.connect(g); g.connect(this.gainNode); o.start(t); o.stop(t+0.3);
+            },
+            playStrings: function(t, f, scream) {
+                if(!this.ctx || this.muted) return;
+                const g=this.ctx.createGain(); g.gain.setValueAtTime(0.05, t); g.gain.linearRampToValueAtTime(0, t+1.5);
+                for(let i=0;i<2;i++){
+                    const o=this.ctx.createOscillator(); o.type='sawtooth'; o.frequency.value=f; 
+                    o.detune.value=(Math.random()-0.5)*15;
+                    const fl=this.ctx.createBiquadFilter(); fl.type='lowpass'; fl.frequency.value=scream?5000:800;
+                    o.connect(fl); fl.connect(g); o.start(t); o.stop(t+1.5);
+                }
+                g.connect(this.gainNode);
+            },
+
+            // Sequencer
+            schedule: function(timeLeft, totalTime) {
+                if(this.muted || !this.ctx) return;
+                const now = this.ctx.currentTime;
+                const p = 1 - (timeLeft / totalTime);
+                
+                let phase = 0;
+                if(p > 0.3) phase = 1; // Intro
+                if(p > 0.6) phase = 2; // Rock
+                if(p > 0.9) phase = 3; // Metal
+
+                // BPM Ramp
+                const bpm = 90 + (phase * 30); 
+                const stepTime = (60/bpm)/4;
+
+                while(this.nextNoteTime < now + 0.1) {
+                    this.playStep(this.step, this.nextNoteTime, phase);
+                    this.step = (this.step + 1) % 16;
+                    this.nextNoteTime += stepTime;
+                    if(this.step === 0) { this.bar++; if(this.bar%2===0) this.genPattern(); }
+                }
+                requestAnimationFrame(() => this.schedule(timeLeft, totalTime));
+            },
+
+            playStep: function(s, t, ph) {
+                const roots = [82.4, 65.4, 98.0, 73.4]; 
+                const root = roots[this.bar % 4];
+
+                // Kick
+                if (ph===0 && s%8===0) this.playKick(t, 0.8);
+                if (ph===1 && s%4===0) this.playKick(t, 0.8);
+                if (ph>=2 && s%2===0) this.playKick(t, 0.7);
+                if (ph===3) this.playKick(t, 0.6);
+
+                // Snare
+                if (ph>=1 && s%8===4) this.playSnare(t, 0.4);
+                if (ph===3 && s%2!==0) this.playSnare(t, 0.3);
+
+                // Strings
+                if (ph===0 && s===0) this.playStrings(t, root*2, false);
+                if (ph>=2 && s%4===0) this.playStrings(t, root*4, true); 
+                if (ph===3) this.playStrings(t, root*8, true);
+
+                // Bass
+                if (ph>=1 && s%2===0) this.playBass(t, root);
+
+                // Guitar
+                if (ph===1 && s%2===0) this.playGuitar(t, root*2, false); // Clean
+                if (ph>=2 && (s===0||s===3||s===6)) this.playGuitar(t, root, true); // Dist
+                
+                // Melody
+                if (ph>=1 && this.melodyPattern[s] !== -1) {
+                    const n = this.scale[this.melodyPattern[s]];
+                    this.playGuitar(t, n * (ph===3?2:1), ph>=2);
+                }
+
+                // Hats
+                if (ph>=1 && s%2!==0) this.playNoise(0.05, 0.05, 8000);
+            },
+
+            updateVis: function(h) {
+                document.querySelectorAll('.vis-bar').forEach(b => b.style.height = (Math.random()*h*10+10)+'%');
+            },
+            playExplosion: function() {
+                if(!this.ctx || this.muted) return;
+                this.playNoise(2.0, 1.0, 100, 'lowpass');
+                this.playTone(50, 'sawtooth', 2.0, 1.0);
+            },
+            stopAll: function() { if(this.ctx) this.ctx.suspend(); }
+        };
+
+        /* --- 2. 題庫 (Merged v3 + v55 + Extra) --- */
+        const MASTER_TASKS = [
+            "用氣音說：我是蜥蜴人", "對空氣吵架 5 秒", "發出豬叫聲", "深情地看著左邊的人說：我愛你",
+            "模仿尖叫雞的叫聲", "原地轉三圈並假裝頭暈", "全身定格不動 5 秒", "模仿喪屍走路",
+            "大聲唸出：紅鯉魚與綠鯉魚與驢", "模仿手機震動聲「滋...滋...」",
+            "模仿盧媽媽打鼓 (點頭)", "大喊：超派！(鐵拳)", "模仿「科目三」手部動作",
+            "模仿山道猴子騎車壓車", "模仿 AI NPC 說：Ice Cream So Good", "模仿黃仁勳穿皮衣",
+            "大喊：歸剛欸！", "模仿 Anya 哇古哇古", "做一個 JoJo 立", "模仿統神拍桌子",
+            "模仿 C羅 Siuuuu", "假裝喝全糖珍奶 (超甜)", "模仿便利商店開門聲", "模仿藍白拖打蟑螂",
+            "模仿阿姨說：我不想努力了", "模仿杰哥笑聲", "模仿打樁機聲音", "大喊：降肉！",
+            "模仿垃圾車音樂哼唱", "假裝搶不到演唱會門票", "模仿開香檳啵一聲",
+            "一邊深蹲一邊背九九乘法表", "用非慣用手畫圓", "單腳站立閉眼 3 秒", "倒著唸自己的名字",
+            "一手拍頭一手揉肚子", "用氣音快速唸 1-10", "快速點擊螢幕空白處 10 下",
+            "假裝拆除炸彈剪線", "模仿猩猩搥胸", "假裝拿很重啞鈴", "做健美先生 Pose",
+            "模仿企鵝走路", "用屁股寫數字 8", "指天花板喊 UFO", "用手肘點按鈕", 
+            "雙手拇指同時按", "用指關節敲螢幕", "模仿老鼠吱吱叫",
+            "模仿 Siri 聽不懂指令", "模仿 FaceID 解鎖失敗", "假裝手機掉馬桶撈起來",
+            "假裝中了一億彩券", "假裝手上有蜘蛛甩掉", "模仿店員說歡迎光臨(厭世)"
+        ];
+
+        let TaskDeck = [];
+        function shuffleTasks() {
+            TaskDeck = [...MASTER_TASKS];
+            for (let i=TaskDeck.length-1; i>0; i--) { const j=Math.floor(Math.random()*(i+1)); [TaskDeck[i],TaskDeck[j]]=[TaskDeck[j],TaskDeck[i]]; }
+        }
+        function drawTask() {
+            if (TaskDeck.length === 0) shuffleTasks();
+            return TaskDeck.pop();
+        }
+
+        function getEl(id) { return document.getElementById(id); }
+        function showScreen(id) {
+            const screens = document.querySelectorAll('.screen');
+            screens.forEach(el => el.classList.remove('active'));
+            const target = getEl(id);
+            target.classList.add('active');
+            if(id === 'screen-game') {
+                const menu = getEl('screen-menu'); if(menu) menu.remove(); 
+            }
+        }
+
+        /* --- 3. 遊戲核心 --- */
+        const Game = {
+            timer: 0, totalTime: 0, interval: null, isPlaying: false,
+            
+            start: function() {
+                showScreen('screen-game');
+                try { AudioEngine.init(); AudioEngine.playSFX('success'); } catch(e){}
+                shuffleTasks();
+                this.totalTime = 45 + Math.random() * 45; 
+                this.timer = this.totalTime;
+                this.isPlaying = true;
+                
+                Chaos.resolve(); 
+                this.nextTask();
+                
+                AudioEngine.nextNoteTime = AudioEngine.ctx ? AudioEngine.ctx.currentTime + 0.1 : 0;
+                if(AudioEngine.ctx) AudioEngine.schedule(this.timer, this.totalTime);
+                
+                if (this.interval) clearInterval(this.interval);
+                this.interval = setInterval(() => this.loop(), 100);
+            },
+
+            loop: function() {
+                if (!this.isPlaying) return;
+                this.timer -= 0.1;
+                this.updateUI();
+                if (this.timer <= 0) this.explode();
+            },
+
+            tryPass: function(e) {
+                const progress = 1 - (this.timer / this.totalTime);
+                if (progress > 0.85 && !Chaos.active && Math.random() > 0.5) {
+                    const box = getEl('pass-container');
+                    const x = (Math.random()-0.5)*120; const y = (Math.random()-0.5)*80;
+                    box.style.transform = `translate(${x}px, ${y}px)`;
+                    AudioEngine.playSFX('error');
+                    setTimeout(() => box.style.transform = 'translate(0,0)', 250);
+                    return;
+                }
+                this.nextTask();
+            },
+
+            nextTask: function() {
+                if (Chaos.active) return;
+                const risk = 0.15 + (1 - this.timer/this.totalTime) * 0.25;
+                if (Math.random() < risk) { Chaos.tryTrigger(); return; }
+                this.execNext();
+            },
+
+            execNext: function() {
+                if (navigator.vibrate) navigator.vibrate(50);
+                AudioEngine.playSFX('success');
+                const t = drawTask();
+                getEl('task-text').innerText = t;
+            },
+
+            explode: function() {
+                this.isPlaying = false; clearInterval(this.interval);
+                AudioEngine.playExplosion();
+                setTimeout(() => AudioEngine.stopAll(), 2000);
+                if(navigator.vibrate) navigator.vibrate([1000,200,1000]);
+                document.body.classList.add('exploding');
+                getEl('screen-game').classList.add('hidden');
+                setTimeout(() => {
+                    document.body.classList.remove('exploding');
+                    showScreen('screen-end');
+                }, 1500);
+            },
+
+            updateUI: function() {
+                const progress = 1 - (this.timer / this.totalTime);
+                const visualP = Math.min(1, progress * 1.3); 
+                const pct = Math.floor(visualP * 100);
+                
+                getEl('pressure-val').innerText = pct + '%';
+                getEl('time-bar').style.width = (100 - pct) + '%';
+                
+                const btn = getEl('btn-pass');
+                const bg = document.getElementById('screen-game');
+
+                if (progress > 0.3) getEl('time-bar').style.background = `linear-gradient(to left, var(--c-warn), var(--c-main))`;
+                
+                if (visualP > 0.9) {
+                    getEl('time-bar').style.background = 'var(--c-die)';
+                    btn.classList.add('btn-panic');
+                    bg.className = 'screen active shake-3';
+                } else if (progress > 0.6) {
+                    bg.className = 'screen active shake-2';
+                } else if (progress > 0.3) {
+                    bg.className = 'screen active shake-1';
+                } else {
+                    btn.classList.remove('btn-panic');
+                    bg.className = 'screen active';
+                }
+            },
+            
+            toMenu: function() { location.reload(); }
+        };
+
+        /* --- 混亂邏輯 (Fixes) --- */
+        const Chaos = {
+            active: false, timers: [], junkLeft: 0, wakeClicks: 0,
+            boxX: 0, boxY: 0, boxDX: 3, boxDY: 3, bounceTimer: null, history: [],
+            skipTimer: null,
+
+            tryTrigger: function() {
+                if (this.active) return;
+                const types = ['junk', 'bounce', 'captcha-seq', 'captcha-math', 'captcha-arrow', 'captcha-color', 'perm', 'dim', 'tiny', 'yt', 'math', 'arrow', 'net', 'rate'];
+                let type = types[Math.floor(Math.random() * types.length)];
+                
+                if (this.history.length >= 2 && this.history[0] === type) type = types[Math.floor(Math.random() * types.length)];
+                this.history.unshift(type); if(this.history.length>3) this.history.pop();
+
+                if(type==='junk') this.runJunk();
+                else if(type==='bounce') this.runBounce();
+                else if(type.startsWith('captcha')) {
+                     const r = Math.random();
+                     if(r<0.25) this.runCaptchaSeq();
+                     else if(r<0.5) this.runMath();
+                     else if(r<0.75) this.runArrow();
+                     else this.runCaptchaColor();
+                }
+                else if(type==='perm') this.runPerm();
+                else if(type==='dim') this.runDim();
+                else if(type==='tiny') this.runTinyAd();
+                else if(type==='yt') this.runYT();
+                else if(type==='net') this.runNet();
+                else if(type==='rate') this.runRate();
+            },
+            
+            forceResolve: function() { this.resolve(); AudioEngine.playSFX('success'); },
+            
+            show: function(id) {
+                this.resolve(); // Clear prev
+                this.active = true;
+                const el = getEl(id);
+                el.classList.add('chaos-active');
+                AudioEngine.playSFX('error');
+                
+                // Skip button logic
+                const skip = getEl('emergency-btn');
+                skip.style.display = 'none';
+                if(this.skipTimer) clearTimeout(this.skipTimer);
+                this.skipTimer = setTimeout(() => { if(this.active) skip.style.display='block'; }, 3000);
+            },
+            resolve: function() {
+                this.active = false;
+                document.querySelectorAll('.chaos-overlay').forEach(el => el.classList.remove('chaos-active'));
+                getEl('emergency-btn').style.display = 'none';
+                this.timers.forEach(t => clearInterval(t));
+                if(this.bounceTimer) clearInterval(this.bounceTimer);
+                this.timers = [];
+            },
+            
+            runTinyAd: function() { this.show('chaos-tiny-ad'); },
+            runYT: function() { 
+                this.show('chaos-yt');
+                let s = 5; const b = getEl('btn-skip'); b.disabled = true; b.innerText = s;
+                const t = setInterval(() => {
+                    s--; b.innerText = s;
+                    if(s<=0) { clearInterval(t); b.disabled = false; b.innerText = "略過"; b.style.backgroundColor='#0f0'; b.style.color='#000'; }
+                }, 1000); this.timers.push(t);
+            },
+            runJunk: function() {
+                this.show('chaos-junk');
+                const con = getEl('junk-container'); con.innerHTML = '';
+                this.junkLeft = 6; getEl('junk-count').innerText = this.junkLeft;
+                for(let i=0; i<6; i++) {
+                    const el = document.createElement('div'); el.className = 'junk-icon';
+                    el.innerHTML = `<span style="font-size:30px">🗑️</span><b>ERR</b>`;
+                    el.style.left = (10 + Math.random() * 70) + '%'; el.style.top = (10 + Math.random() * 60) + '%';
+                    el.onclick = (e) => {
+                        e.stopPropagation(); e.target.remove();
+                        this.junkLeft--; getEl('junk-count').innerText=this.junkLeft;
+                        AudioEngine.playSFX('trash');
+                        if(this.junkLeft <= 0) { AudioEngine.playSFX('success'); this.resolve(); }
+                    };
+                    con.appendChild(el);
+                }
+            },
+            runPerm: function() { this.show('chaos-perm'); },
+            spamPerm: function() { AudioEngine.playSFX('error'); const b = document.querySelector('.bg-white.text-black'); if(b) b.style.transform=`translate(${Math.random()*20-10}px,${Math.random()*20-10}px)`; setTimeout(()=>b.style.transform='translate(0,0)',100); },
+            runDim: function() {
+                this.show('chaos-dim'); this.wakeClicks = 0; getEl('wake-fill').style.width = '0%';
+            },
+            wakeUp: function() {
+                this.wakeClicks++; getEl('wake-fill').style.width = (this.wakeClicks * 20) + '%';
+                AudioEngine.playSFX('charge');
+                if (this.wakeClicks >= 5) { AudioEngine.playSFX('success'); this.resolve(); }
+            },
+            runBounce: function() {
+                this.show('chaos-bounce');
+                const box = getEl('bouncing-box');
+                this.boxX = Math.random() * (window.innerWidth - 160); this.boxY = Math.random() * (window.innerHeight - 90);
+                this.bounceTimer = setInterval(() => {
+                    this.boxX += this.boxDX; this.boxY += this.boxDY;
+                    if(this.boxX<=0 || this.boxX>=window.innerWidth-160) { this.boxDX*=-1; AudioEngine.playSFX('success'); }
+                    if(this.boxY<=0 || this.boxY>=window.innerHeight-90) { this.boxDY*=-1; AudioEngine.playSFX('success'); }
+                    box.style.left=this.boxX+'px'; box.style.top=this.boxY+'px';
+                }, 16);
+            },
+            // 1. Sequence
+            runCaptchaSeq: function() {
+                this.show('chaos-captcha');
+                getEl('captcha-title').innerText = "Security Check";
+                getEl('captcha-hint').innerHTML = 'Tap: <span class="text-yellow-400 font-bold text-lg">1 ➡ 2 ➡ 3 ➡ 4</span>';
+                const grid = getEl('captcha-grid'); grid.innerHTML='';
+                const nums = [1,2,3,4]; let seq = 1;
+                for (let i=nums.length-1; i>0; i--) { const j=Math.floor(Math.random()*(i+1)); [nums[i],nums[j]]=[nums[j],nums[i]]; }
+                nums.forEach(n => {
+                    const d = document.createElement('div'); d.className='captcha-tile'; d.innerText = n;
+                    d.onclick = () => {
+                        if(n === seq) {
+                            d.style.background='#0f0'; d.style.color='black'; AudioEngine.playSFX('success');
+                            seq++; if(seq > 4) setTimeout(()=>this.resolve(), 200);
+                        } else {
+                            AudioEngine.playSFX('error'); d.style.background='red'; setTimeout(()=>d.style.background='#222', 200);
+                        }
+                    };
+                    grid.appendChild(d);
+                });
+            },
+            // 2. Math
+            runMath: function() {
+                this.show('chaos-captcha');
+                const n1 = Math.floor(Math.random()*5)+1; const n2 = Math.floor(Math.random()*5)+1;
+                getEl('captcha-title').innerText = "Human Test";
+                getEl('captcha-hint').innerHTML = `Solve: <span class="text-yellow-400 font-bold">${n1} + ${n2} = ?</span>`;
+                const grid = getEl('captcha-grid'); grid.innerHTML='';
+                const ans = n1+n2; const opts = [ans, ans+1, ans-1, ans+2].sort(()=>Math.random()-0.5);
+                opts.forEach(n => {
+                    const d = document.createElement('div'); d.className='captcha-tile'; d.innerText = n;
+                    d.onclick = () => {
+                        if(n === ans) { AudioEngine.playSFX('success'); this.resolve(); }
+                        else { AudioEngine.playSFX('error'); d.style.background='red'; setTimeout(()=>d.style.background='#222', 200); }
+                    };
+                    grid.appendChild(d);
+                });
+            },
+            // 3. Arrow
+            runArrow: function() {
+                this.show('chaos-captcha');
+                const dirs = ['⬆️', '⬇️', '⬅️', '➡️']; const target = dirs[Math.floor(Math.random()*4)];
+                getEl('captcha-title').innerText = "Quick Check";
+                getEl('captcha-hint').innerHTML = `Tap: <span class="text-yellow-400 font-bold text-2xl">${target}</span>`;
+                const grid = getEl('captcha-grid'); grid.innerHTML='';
+                dirs.sort(()=>Math.random()-0.5).forEach(d => {
+                    const div = document.createElement('div'); div.className='captcha-tile'; div.innerText = d;
+                    div.onclick = () => {
+                        if(d === target) { AudioEngine.playSFX('success'); this.resolve(); }
+                        else { AudioEngine.playSFX('error'); div.style.background='red'; setTimeout(()=>div.style.background='#222', 200); }
+                    };
+                    grid.appendChild(div);
+                });
+            },
+            runCaptchaColor: function() {
+                this.show('chaos-captcha');
+                getEl('captcha-title').innerText = "Color Check";
+                getEl('captcha-hint').innerHTML = "Tap <span class='text-red-500 font-bold'>RED</span>";
+                const grid = getEl('captcha-grid'); grid.innerHTML='';
+                const colors = ['bg-red-600', 'bg-blue-600', 'bg-green-600', 'bg-yellow-500'];
+                for(let i=0;i<4;i++) {
+                    const c = i===0 ? 'bg-red-600' : colors[Math.floor(Math.random()*4)];
+                    const d = document.createElement('div'); d.className = `captcha-tile ${c}`;
+                    d.onclick = () => {
+                        if(c === 'bg-red-600') { AudioEngine.playSFX('success'); this.resolve(); }
+                        else { AudioEngine.playSFX('error'); }
+                    };
+                    grid.appendChild(d);
+                }
+                for (let i = grid.children.length; i >= 0; i--) { grid.appendChild(grid.children[Math.random() * i | 0]); }
+            },
+            runRate: function() { this.show('chaos-rate'); },
+            spamRate: function() { AudioEngine.playSFX('error'); this.runRate(); },
+            runNet: function() { this.show('chaos-net'); },
+            runToS: function() {
+                this.show('chaos-tos');
+                let s = 3; const btn = getEl('btn-tos'); btn.disabled=true; btn.className="w-full bg-gray-500 text-white py-2 rounded";
+                const t = setInterval(() => {
+                    s--; btn.innerText = `Wait ${s}s...`;
+                    if(s<=0) { clearInterval(t); btn.disabled=false; btn.innerText="I AGREE"; btn.className="w-full bg-green-500 text-white py-2 rounded font-bold"; }
+                }, 1000);
+                this.timers.push(t);
+            }
+        };
+        
+        window.onload = function() { getEl('screen-menu').style.display = 'flex'; }
+    </script>
+</body>
+</html>
